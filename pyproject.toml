@@ -5,7 +5,13 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "bs4>=0.0.2",
     "httpx>=0.28.1",
     "mcp[cli]>=1.6.0",
+    "opensky-api",
+    "requests>=2.32.3",
     "torsimany>=1.0",
 ]
+
+[tool.uv.sources]
+opensky-api = { path = "opensky-api/python" }
