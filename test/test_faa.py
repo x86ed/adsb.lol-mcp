@@ -1,5 +1,6 @@
 import sys
 import os
+import time
 import unittest
 from unittest import mock
 import sqlite3
@@ -228,6 +229,47 @@ class TestFAARegistration(unittest.TestCase):
         
         # Verify save_aircraft_data was called twice (for the two successful parses)
         self.assertEqual(mock_save.call_count, 2)
+
+    def test_save_aircraft_data_with_foreign_key(self):
+        """Test saving aircraft data with a foreign key relationship."""
+        # Insert a record into faa_reg to satisfy the foreign key constraint
+        faa_data = {
+            "n_number": "N12345",
+            "manufacturer": "CESSNA",
+            "model": "172S"
+        }
+        save_aircraft_data(self.conn, faa_data)
+    
+        cursor = self.conn.cursor()
+
+        # Ensure lol_aircraft table exists for this specific test
+        # Minimal schema for this test, including the foreign key
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS lol_aircraft (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            timestamp INTEGER NOT NULL,
+            hex TEXT NOT NULL,
+            r TEXT,
+            flight TEXT,
+            FOREIGN KEY (r) REFERENCES faa_reg(n_number) ON DELETE CASCADE
+        )
+        ''')
+        self.conn.commit() # Commit the table creation
+
+        # Now insert a record into lol_aircraft referencing the n_number in faa_reg
+        cursor.execute('''
+        INSERT INTO lol_aircraft (timestamp, hex, r, flight) 
+        VALUES (?, ?, ?, ?)
+        ''', (int(time.time()), "a1b2c3", "N12345", "UAL123"))
+        self.conn.commit()
+
+        # Verify the record was saved
+        cursor.execute("SELECT hex, r, flight FROM lol_aircraft WHERE r = ?", ("N12345",))
+        result = cursor.fetchone()
+        self.assertIsNotNone(result)
+        self.assertEqual(result[0], "a1b2c3")
+        self.assertEqual(result[1], "N12345")
+        self.assertEqual(result[2], "UAL123")
 
 
 if __name__ == '__main__':

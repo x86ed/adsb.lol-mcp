@@ -177,6 +177,7 @@ def setup_database(db_path='aircraft.db'):
         sqlite3.Connection: Database connection object
     """
     conn = sqlite3.connect(db_path)
+    conn.execute("PRAGMA foreign_keys = ON;")  # Enable foreign keys
     cursor = conn.cursor()
     
     # Check if the table already exists - changed table name to faa_reg

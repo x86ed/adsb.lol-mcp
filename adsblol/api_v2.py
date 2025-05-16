@@ -32,14 +32,70 @@ def setup_lol_aircraft_database(db_path='aircraft.db'):
         sqlite3.Connection: Database connection object
     """
     conn = sqlite3.connect(db_path)
+    conn.execute("PRAGMA foreign_keys = ON;")  # Enable foreign keys
     cursor = conn.cursor()
     
-    # Check if the table already exists
+    # Check if the lol_aircraft table already exists
     cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='lol_aircraft'")
-    table_exists = cursor.fetchone() is not None
-    
-    if not table_exists:
-        # Create table based on flattened V2Response_AcItem schema
+    lol_aircraft_exists = cursor.fetchone() is not None
+
+    # Check if the faa_reg table already exists
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='faa_reg'")
+    faa_reg_exists = cursor.fetchone() is not None
+
+    if not faa_reg_exists:
+        # Create faa_reg table if it doesn't exist
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS faa_reg (
+            n_number TEXT PRIMARY KEY,
+            serial_number TEXT,
+            manufacturer TEXT,
+            model TEXT,
+            type_registrant TEXT,
+            name TEXT,
+            street TEXT,
+            city TEXT,
+            state TEXT,
+            zip_code TEXT,
+            region TEXT,
+            county TEXT,
+            country TEXT,
+            last_action_date TEXT,
+            certificate_issue_date TEXT,
+            certification TEXT,
+            type_aircraft TEXT,
+            type_engine TEXT,
+            status TEXT,
+            mode_s_code_hex TEXT,
+            fractional_ownership TEXT,
+            airworthiness_date TEXT,
+            other_names TEXT,
+            expiration_date TEXT,
+            weight_category TEXT,
+            date_change_authorization TEXT,
+            other_change_authorization TEXT,
+            date_of_registration TEXT,
+            registered_owner TEXT,
+            manufacturer_name TEXT,
+            model_designation TEXT,
+            series_name TEXT,
+            aircraft_category TEXT,
+            builder TEXT,
+            year_manufactured TEXT,
+            number_of_engines TEXT,
+            number_of_seats TEXT,
+            weight TEXT,
+            cruising_speed TEXT,
+            engine_manufacturer TEXT,
+            engine_model TEXT,
+            propeller_manufacturer TEXT,
+            propeller_model TEXT,
+            fetch_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        ''')
+
+    if not lol_aircraft_exists:
+        # Create lol_aircraft table with a foreign key relationship to faa_reg
         cursor.execute('''
         CREATE TABLE IF NOT EXISTS lol_aircraft (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -105,7 +161,8 @@ def setup_lol_aircraft_database(db_path='aircraft.db'):
             rr_lat REAL,
             rr_lon REAL,
             calc_track INTEGER,
-            nav_altitude_fms INTEGER
+            nav_altitude_fms INTEGER,
+            FOREIGN KEY (r) REFERENCES faa_reg(n_number) ON DELETE CASCADE
         )
         ''')
     
