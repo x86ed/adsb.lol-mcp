@@ -398,6 +398,7 @@ def register_api_v2(mcp):
     @mcp.tool()
     async def get_squawk(squawk: str) -> str:
         """Returns aircraft filtered by "squawk" transponder code. https://en.wikipedia.org/wiki/List_of_transponder_codes
+        Data is stored in the database table 'lol_aircraft' and a count is returned along with aircraft details.
 
         Args: 
             squawk: The squawk code to search for.
@@ -411,12 +412,26 @@ def register_api_v2(mcp):
         if not data["ac"]:
             return "No aircraft matching that squawk code found."
 
+        # Set up database connection
+        conn = setup_lol_aircraft_database()
+        
+        # Save aircraft data to database
+        count = save_aircraft_to_db(data["ac"], conn)
+        
+        # Format aircraft data for display
         aircraft = [format_markdown(acItem) for acItem in data["ac"]]
-        return "\n---\n".join(aircraft)
+        formatted_data = "\n---\n".join(aircraft)
+        
+        # Close database connection
+        conn.close()
+        
+        # Return both the count and the formatted data
+        return f"Found and saved {count} aircraft with squawk code '{squawk}' to database.\n\n{formatted_data}"
 
     @mcp.tool()
     async def get_type(aircraft_type: str) -> str:
         """Returns aircraft filtered by aircraft type designator code. https://en.wikipedia.org/wiki/List_of_aircraft_type_designators
+        Data is stored in the database table 'lol_aircraft' and a count is returned along with aircraft details.
 
         Args:
             aircraft_type: The aircraft type designator code to search for.
@@ -430,12 +445,26 @@ def register_api_v2(mcp):
         if not data["ac"]:
             return "No aircraft matching that aircraft type found."
 
+        # Set up database connection
+        conn = setup_lol_aircraft_database()
+        
+        # Save aircraft data to database
+        count = save_aircraft_to_db(data["ac"], conn)
+        
+        # Format aircraft data for display
         aircraft = [format_markdown(acItem) for acItem in data["ac"]]
-        return "\n---\n".join(aircraft)
+        formatted_data = "\n---\n".join(aircraft)
+        
+        # Close database connection
+        conn.close()
+        
+        # Return both the count and the formatted data
+        return f"Found and saved {count} aircraft of type '{aircraft_type}' to database.\n\n{formatted_data}"
 
     @mcp.tool()
     async def get_registration(registration: str) -> str:
         """Returns aircraft filtered by aircraft registration code (G-KELS). https://en.wikipedia.org/wiki/Aircraft_registration
+        Data is stored in the database table 'lol_aircraft' and a count is returned along with aircraft details.
 
         Args:
             registration: The aircraft registration code to search for.
@@ -449,12 +478,26 @@ def register_api_v2(mcp):
         if not data["ac"]:
             return "No aircraft matching that registration code found."
 
+        # Set up database connection
+        conn = setup_lol_aircraft_database()
+        
+        # Save aircraft data to database
+        count = save_aircraft_to_db(data["ac"], conn)
+        
+        # Format aircraft data for display
         aircraft = [format_markdown(acItem) for acItem in data["ac"]]
-        return "\n---\n".join(aircraft)
+        formatted_data = "\n---\n".join(aircraft)
+        
+        # Close database connection
+        conn.close()
+        
+        # Return both the count and the formatted data
+        return f"Found and saved {count} aircraft with registration '{registration}' to database.\n\n{formatted_data}"
 
     @mcp.tool()
     async def get_icao_hex(icao_hex: str) -> str:
         """Returns aircraft filtered by transponder hex code. https://en.wikipedia.org/wiki/Mode_S_transponder
+        Data is stored in the database table 'lol_aircraft' and a count is returned along with aircraft details.
 
         Args:
             icao_hex: The ICAO hex code to search for.
@@ -468,12 +511,26 @@ def register_api_v2(mcp):
         if not data["ac"]:
             return "No aircraft matching that hex code found."
 
+        # Set up database connection
+        conn = setup_lol_aircraft_database()
+        
+        # Save aircraft data to database
+        count = save_aircraft_to_db(data["ac"], conn)
+        
+        # Format aircraft data for display
         aircraft = [format_markdown(acItem) for acItem in data["ac"]]
-        return "\n---\n".join(aircraft)
+        formatted_data = "\n---\n".join(aircraft)
+        
+        # Close database connection
+        conn.close()
+        
+        # Return both the count and the formatted data
+        return f"Found and saved {count} aircraft with ICAO hex code '{icao_hex}' to database.\n\n{formatted_data}"
 
     @mcp.tool()
     async def get_callsign(callsign: str) -> str:
         """Returns aircraft filtered by callsign. https://en.wikipedia.org/wiki/Callsign
+        Data is stored in the database table 'lol_aircraft' and a count is returned along with aircraft details.
 
         Args:
             callsign: The callsign to search for.
@@ -487,12 +544,26 @@ def register_api_v2(mcp):
         if not data["ac"]:
             return "No aircraft matching that callsign found."
 
+        # Set up database connection
+        conn = setup_lol_aircraft_database()
+        
+        # Save aircraft data to database
+        count = save_aircraft_to_db(data["ac"], conn)
+        
+        # Format aircraft data for display
         aircraft = [format_markdown(acItem) for acItem in data["ac"]]
-        return "\n---\n".join(aircraft)
+        formatted_data = "\n---\n".join(aircraft)
+        
+        # Close database connection
+        conn.close()
+        
+        # Return both the count and the formatted data
+        return f"Found and saved {count} aircraft with callsign '{callsign}' to database.\n\n{formatted_data}"
 
     @mcp.tool()
     async def get_search_radius(lat: float, lon: float, radius: float) -> str:
         """Returns aircraft located in a circle described by the latitude and longitude of its center and its radius.
+        Data is stored in the database table 'lol_aircraft' and a count is returned along with aircraft details.
 
         Args:
             lat: The latitude of the center of the circle.
@@ -508,12 +579,26 @@ def register_api_v2(mcp):
         if not data["ac"]:
             return "No aircraft found."
 
+        # Set up database connection
+        conn = setup_lol_aircraft_database()
+        
+        # Save aircraft data to database
+        count = save_aircraft_to_db(data["ac"], conn)
+        
+        # Format aircraft data for display
         aircraft = [format_markdown(acItem) for acItem in data["ac"]]
-        return "\n---\n".join(aircraft)
+        formatted_data = "\n---\n".join(aircraft)
+        
+        # Close database connection
+        conn.close()
+        
+        # Return both the count and the formatted data
+        return f"Found and saved {count} aircraft within {radius}nm of lat:{lat}/lon:{lon} to database.\n\n{formatted_data}"
 
     @mcp.tool()
     async def get_closest(lat: float, lon: float, radius: float) -> str:
         """Returns the closest aircraft to a point described by the latitude and longitude within a radius up to 250nm.
+        Data is stored in the database table 'lol_aircraft' and a count is returned along with aircraft details.
 
         Args:
             lat: The latitude of the center of the circle.
@@ -529,12 +614,26 @@ def register_api_v2(mcp):
         if not data["ac"]:
             return "No aircraft found."
 
+        # Set up database connection
+        conn = setup_lol_aircraft_database()
+        
+        # Save aircraft data to database
+        count = save_aircraft_to_db(data["ac"], conn)
+        
+        # Format aircraft data for display
         aircraft = [format_markdown(acItem) for acItem in data["ac"]]
-        return "\n---\n".join(aircraft)
+        formatted_data = "\n---\n".join(aircraft)
+        
+        # Close database connection
+        conn.close()
+        
+        # Return both the count and the formatted data
+        return f"Found and saved {count} closest aircraft within {radius}nm of lat:{lat}/lon:{lon} to database.\n\n{formatted_data}"
         
     @mcp.tool()
     async def get_route(callsign: str) -> str:
-        """Returns route of aircraft by callsign
+        """Returns route of aircraft by callsign.
+        Data is stored in the database table 'lol_aircraft' and a count is returned along with aircraft details.
 
         Args:
             callsign: The callsign to search for.
@@ -548,7 +647,20 @@ def register_api_v2(mcp):
         if not data["ac"]:
             return "No aircraft matching that route found."
 
+        # Set up database connection
+        conn = setup_lol_aircraft_database()
+        
+        # Save aircraft data to database
+        count = save_aircraft_to_db(data["ac"], conn)
+        
+        # Format aircraft data for display
         aircraft = [format_markdown(acItem) for acItem in data["ac"]]
-        return "\n---\n".join(aircraft)
+        formatted_data = "\n---\n".join(aircraft)
+        
+        # Close database connection
+        conn.close()
+        
+        # Return both the count and the formatted data
+        return f"Found and saved {count} aircraft from route lookup for callsign '{callsign}' to database.\n\n{formatted_data}"
     
     return mcp

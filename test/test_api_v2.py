@@ -227,15 +227,162 @@ async def test_get_ladd_success(temp_db):
 
 # Similar tests for other endpoints
 @pytest.mark.asyncio
-async def test_get_squawk_success():
-    """Test get_squawk with successful response."""
+async def test_get_squawk_success(temp_db):
+    """Test get_squawk with successful response and database storage."""
+    db_path, conn = temp_db
+    
+    # Set up mock MCP
     mcp = MockMCP()
     register_api_v2(mcp)
     
-    with mock.patch("adsblol.api_v2.make_api_request", return_value=SAMPLE_AIRCRAFT_DATA):
-        result = await mcp.tools["get_squawk"]("7700")
+    squawk = "7700"
+    
+    # Mock the API response and database functions
+    with mock.patch("adsblol.api_v2.make_api_request", return_value=SAMPLE_AIRCRAFT_DATA), \
+         mock.patch("adsblol.api_v2.setup_lol_aircraft_database", return_value=conn), \
+         mock.patch("adsblol.api_v2.save_aircraft_to_db", return_value=2):
+        
+        result = await mcp.tools["get_squawk"](squawk)
+        
+        # Check result contains both count message and aircraft details
+        assert f"Found and saved 2 aircraft with squawk code '{squawk}' to database" in result
         assert "DAL456" in result
         assert "7700" in result
+
+@pytest.mark.asyncio
+async def test_get_type_success(temp_db):
+    """Test get_type with successful response and database storage."""
+    db_path, conn = temp_db
+    
+    # Set up mock MCP
+    mcp = MockMCP()
+    register_api_v2(mcp)
+    
+    aircraft_type = "B738"
+    
+    # Mock the API response and database functions
+    with mock.patch("adsblol.api_v2.make_api_request", return_value=SAMPLE_AIRCRAFT_DATA), \
+         mock.patch("adsblol.api_v2.setup_lol_aircraft_database", return_value=conn), \
+         mock.patch("adsblol.api_v2.save_aircraft_to_db", return_value=2):
+        
+        result = await mcp.tools["get_type"](aircraft_type)
+        
+        # Check result contains both count message and aircraft details
+        assert f"Found and saved 2 aircraft of type '{aircraft_type}' to database" in result
+        assert "UAL123" in result  # B738 from sample data
+
+@pytest.mark.asyncio
+async def test_get_search_radius_with_db(temp_db):
+    """Test get_search_radius with database storage."""
+    db_path, conn = temp_db
+    
+    mcp = MockMCP()
+    register_api_v2(mcp)
+    
+    lat = 37.7749
+    lon = -122.4194
+    radius = 50.0
+    
+    # Mock the API response and database functions
+    with mock.patch("adsblol.api_v2.make_api_request", return_value=SAMPLE_AIRCRAFT_DATA), \
+         mock.patch("adsblol.api_v2.setup_lol_aircraft_database", return_value=conn), \
+         mock.patch("adsblol.api_v2.save_aircraft_to_db", return_value=2):
+        
+        result = await mcp.tools["get_search_radius"](lat, lon, radius)
+        
+        # Check result contains both count message and aircraft details
+        assert f"Found and saved 2 aircraft within {radius}nm of lat:{lat}/lon:{lon} to database" in result
+        assert "UAL123" in result
+        assert "DAL456" in result
+
+@pytest.mark.asyncio
+async def test_get_closest_with_db(temp_db):
+    """Test get_closest with database storage."""
+    db_path, conn = temp_db
+    
+    mcp = MockMCP()
+    register_api_v2(mcp)
+    
+    lat = 40.7128
+    lon = -74.0060
+    radius = 25.0
+    
+    # Mock the API response and database functions
+    with mock.patch("adsblol.api_v2.make_api_request", return_value=SAMPLE_AIRCRAFT_DATA), \
+         mock.patch("adsblol.api_v2.setup_lol_aircraft_database", return_value=conn), \
+         mock.patch("adsblol.api_v2.save_aircraft_to_db", return_value=2):
+        
+        result = await mcp.tools["get_closest"](lat, lon, radius)
+        
+        # Check result contains both count message and aircraft details
+        assert f"Found and saved 2 closest aircraft within {radius}nm of lat:{lat}/lon:{lon} to database" in result
+        assert "UAL123" in result
+        assert "DAL456" in result
+
+@pytest.mark.asyncio
+async def test_get_route_with_db(temp_db):
+    """Test get_route with database storage."""
+    db_path, conn = temp_db
+    
+    mcp = MockMCP()
+    register_api_v2(mcp)
+    
+    callsign = "UAL123"
+    
+    # Mock the API response and database functions
+    with mock.patch("adsblol.api_v2.make_api_request", return_value=SAMPLE_AIRCRAFT_DATA), \
+         mock.patch("adsblol.api_v2.setup_lol_aircraft_database", return_value=conn), \
+         mock.patch("adsblol.api_v2.save_aircraft_to_db", return_value=2):
+        
+        result = await mcp.tools["get_route"](callsign)
+        
+        # Check result contains both count message and aircraft details
+        assert f"Found and saved 2 aircraft from route lookup for callsign '{callsign}' to database" in result
+        assert "UAL123" in result
+
+@pytest.mark.asyncio
+async def test_get_registration_with_db(temp_db):
+    """Test get_registration with database storage."""
+    db_path, conn = temp_db
+    
+    mcp = MockMCP()
+    register_api_v2(mcp)
+    
+    registration = "N12345"
+    
+    # Mock the API response and database functions
+    with mock.patch("adsblol.api_v2.make_api_request", return_value=SAMPLE_AIRCRAFT_DATA), \
+         mock.patch("adsblol.api_v2.setup_lol_aircraft_database", return_value=conn), \
+         mock.patch("adsblol.api_v2.save_aircraft_to_db", return_value=2):
+        
+        result = await mcp.tools["get_registration"](registration)
+        
+        # Check result contains both count message and aircraft details
+        assert f"Found and saved 2 aircraft with registration '{registration}' to database" in result
+        assert "UAL123" in result
+        assert "DAL456" in result
+
+@pytest.mark.asyncio
+async def test_get_icao_hex_with_db(temp_db):
+    """Test get_icao_hex with database storage."""
+    db_path, conn = temp_db
+    
+    mcp = MockMCP()
+    register_api_v2(mcp)
+    
+    icao_hex = "a1b2c3"
+    
+    # Mock the API response and database functions
+    with mock.patch("adsblol.api_v2.make_api_request", return_value=SAMPLE_AIRCRAFT_DATA), \
+         mock.patch("adsblol.api_v2.setup_lol_aircraft_database", return_value=conn), \
+         mock.patch("adsblol.api_v2.save_aircraft_to_db", return_value=2):
+        
+        result = await mcp.tools["get_icao_hex"](icao_hex)
+        
+        # Check result contains both count message and aircraft details
+        assert f"Found and saved 2 aircraft with ICAO hex code '{icao_hex}' to database" in result
+        assert "UAL123" in result
+        assert "DAL456" in result
 
 # Test all other endpoints for basic URL formatting
 @pytest.mark.parametrize("tool_name, expected_url_part", [
@@ -345,3 +492,78 @@ async def test_get_type_error_message():
         result = await mcp.tools["get_type"]("B738")
         # Verify it mentions aircraft type, not squawk code
         assert "No aircraft matching that aircraft type found" in result
+
+# Tests for single vs. multiple aircraft response formats
+@pytest.mark.asyncio
+async def test_single_aircraft_detail(temp_db):
+    """Test that functions return detailed formatting for a single aircraft."""
+    db_path, conn = temp_db
+    
+    # Set up mock MCP
+    mcp = MockMCP()
+    register_api_v2(mcp)
+    
+    # Create a sample with a single aircraft
+    single_aircraft_data = {
+        "ac": [
+            {
+                "hex": "a1b2c3",
+                "flight": "UAL123",
+                "alt_baro": 35000,
+                "gs": 450.3,
+                "lat": 37.7749,
+                "lon": -122.4194,
+                "track": 270,
+                "type": "B738",
+                "squawk": "1200"
+            }
+        ]
+    }
+    
+    # Mock the API response and database functions for single aircraft
+    with mock.patch("adsblol.api_v2.make_api_request", return_value=single_aircraft_data), \
+         mock.patch("adsblol.api_v2.setup_lol_aircraft_database", return_value=conn), \
+         mock.patch("adsblol.api_v2.save_aircraft_to_db", return_value=1):  # Just 1 aircraft
+        
+        # Test with a single aircraft lookup
+        result = await mcp.tools["get_icao_hex"]("a1b2c3")
+        
+        # Should include both count message and details
+        assert "Found and saved 1 aircraft" in result
+        assert "UAL123" in result
+        assert "B738" in result
+        
+        # Test another function with single aircraft response
+        result = await mcp.tools["get_registration"]("N12345")
+        
+        # Should include both count message and details
+        assert "Found and saved 1 aircraft with registration" in result
+        assert "UAL123" in result
+
+@pytest.mark.asyncio
+async def test_multiple_aircraft_count_only(temp_db):
+    """Test that functions return only count for multiple aircraft."""
+    db_path, conn = temp_db
+    
+    # Set up mock MCP
+    mcp = MockMCP()
+    register_api_v2(mcp)
+    
+    # Mock the API response and database functions for multiple aircraft
+    with mock.patch("adsblol.api_v2.make_api_request", return_value=SAMPLE_AIRCRAFT_DATA), \
+         mock.patch("adsblol.api_v2.setup_lol_aircraft_database", return_value=conn), \
+         mock.patch("adsblol.api_v2.save_aircraft_to_db", return_value=2):  # 2 or more aircraft
+        
+        # Test with multiple aircraft lookup
+        result = await mcp.tools["get_type"]("B738")
+        
+        # Should only include count message, not details
+        assert "Found and saved 2 aircraft of type 'B738' to database" in result
+        assert "UAL123" not in result  # Details should not be included
+        
+        # Test geographic search with multiple results
+        result = await mcp.tools["get_search_radius"](37.7749, -122.4194, 50.0)
+        
+        # Should only include count message, not details
+        assert "Found and saved 2 aircraft within 50.0nm" in result
+        assert "UAL123" not in result  # Details should not be included
