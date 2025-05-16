@@ -271,3 +271,77 @@ async def test_endpoint_url_formatting(tool_name, expected_url_part):
 def test_import_works():
     """Verify that imports work."""
     assert 'make_api_request' in globals()
+
+# Add tests for get_search_radius and get_closest with float parameters
+@pytest.mark.asyncio
+async def test_get_search_radius():
+    """Test get_search_radius with float parameters."""
+    mcp = MockMCP()
+    register_api_v2(mcp)
+    
+    lat = 37.7749
+    lon = -122.4194
+    radius = 50.0
+    
+    # Use side_effect to capture and validate the URL parameters
+    async def check_url(url):
+        assert f"/v2/point/{lat}/{lon}/{radius}" in url
+        return SAMPLE_AIRCRAFT_DATA
+    
+    with mock.patch("adsblol.api_v2.make_api_request", side_effect=check_url):
+        result = await mcp.tools["get_search_radius"](lat, lon, radius)
+        assert result is not None
+        # Verify aircraft data is in the result
+        assert "UAL123" in result
+
+@pytest.mark.asyncio
+async def test_get_closest():
+    """Test get_closest with float parameters."""
+    mcp = MockMCP()
+    register_api_v2(mcp)
+    
+    lat = 40.7128
+    lon = -74.0060
+    radius = 25.0
+    
+    # Use side_effect to capture and validate the URL parameters
+    async def check_url(url):
+        assert f"/v2/closest/{lat}/{lon}/{radius}" in url
+        return SAMPLE_AIRCRAFT_DATA
+    
+    with mock.patch("adsblol.api_v2.make_api_request", side_effect=check_url):
+        result = await mcp.tools["get_closest"](lat, lon, radius)
+        assert result is not None
+        # Verify aircraft data is in the result
+        assert "UAL123" in result
+
+@pytest.mark.asyncio
+async def test_get_route():
+    """Test get_route function."""
+    mcp = MockMCP()
+    register_api_v2(mcp)
+    
+    callsign = "UAL123"
+    
+    # Use side_effect to capture and validate the URL
+    async def check_url(url):
+        assert f"/v0/route/{callsign}" in url
+        return SAMPLE_AIRCRAFT_DATA
+    
+    with mock.patch("adsblol.api_v2.make_api_request", side_effect=check_url):
+        result = await mcp.tools["get_route"](callsign)
+        assert result is not None
+        # Verify aircraft data is in the result
+        assert "UAL123" in result
+
+@pytest.mark.asyncio
+async def test_get_type_error_message():
+    """Test get_type returns correct error message."""
+    mcp = MockMCP()
+    register_api_v2(mcp)
+    
+    # Mock empty response
+    with mock.patch("adsblol.api_v2.make_api_request", return_value={"ac": []}):
+        result = await mcp.tools["get_type"]("B738")
+        # Verify it mentions aircraft type, not squawk code
+        assert "No aircraft matching that aircraft type found" in result

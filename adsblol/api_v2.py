@@ -425,10 +425,10 @@ def register_api_v2(mcp):
         data = await make_api_request(url)
 
         if not data or "ac" not in data:
-            return "No aircraft matching that squawk code found."
+            return "No aircraft matching that aircraft type found."
 
         if not data["ac"]:
-            return "No aircraft matching that squawk code found."
+            return "No aircraft matching that aircraft type found."
 
         aircraft = [format_markdown(acItem) for acItem in data["ac"]]
         return "\n---\n".join(aircraft)
@@ -491,8 +491,8 @@ def register_api_v2(mcp):
         return "\n---\n".join(aircraft)
 
     @mcp.tool()
-    async def get_search_radius(lat: str,lon: str, radius:str) -> str:
-        """Returns aircraft located in a circle described by the latitude and longtidude of its center and its radius.
+    async def get_search_radius(lat: float, lon: float, radius: float) -> str:
+        """Returns aircraft located in a circle described by the latitude and longitude of its center and its radius.
 
         Args:
             lat: The latitude of the center of the circle.
@@ -512,8 +512,8 @@ def register_api_v2(mcp):
         return "\n---\n".join(aircraft)
 
     @mcp.tool()
-    async def get_closest(lat: str,lon: str, radius:str) -> str:
-        """Returns the closest aircraft to a point described by the latitude and longtidude within a radius up to 250nm.
+    async def get_closest(lat: float, lon: float, radius: float) -> str:
+        """Returns the closest aircraft to a point described by the latitude and longitude within a radius up to 250nm.
 
         Args:
             lat: The latitude of the center of the circle.
@@ -531,12 +531,13 @@ def register_api_v2(mcp):
 
         aircraft = [format_markdown(acItem) for acItem in data["ac"]]
         return "\n---\n".join(aircraft)
+        
     @mcp.tool()
     async def get_route(callsign: str) -> str:
         """Returns route of aircraft by callsign
 
         Args:
-            callsign: The calsign to search for.
+            callsign: The callsign to search for.
         """
         url = f"{API_BASE}/v0/route/{callsign}"
         data = await make_api_request(url)

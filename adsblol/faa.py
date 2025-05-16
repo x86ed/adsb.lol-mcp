@@ -242,6 +242,47 @@ def setup_database(db_path='aircraft.db'):
     conn.commit()
     return conn
 
+def get_aircraft_data(conn, n_number: str):
+    """
+    Retrieves aircraft data from the faa_reg table for a given N-Number.
+
+    Args:
+        conn (sqlite3.Connection): Database connection object.
+        n_number (str): The N-Number of the aircraft to retrieve.
+
+    Returns:
+        dict: A dictionary containing the aircraft data, or None if not found.
+    """
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM faa_reg WHERE n_number = ?", (n_number,))
+    row = cursor.fetchone()
+    if row:
+        # Get column names from cursor.description
+        columns = [desc[0] for desc in cursor.description]
+        return dict(zip(columns, row))
+    return None
+
+def delete_aircraft_data(conn, n_number: str):
+    """
+    Deletes aircraft data from the faa_reg table for a given N-Number.
+
+    Args:
+        conn (sqlite3.Connection): Database connection object.
+        n_number (str): The N-Number of the aircraft to delete.
+
+    Returns:
+        bool: True if the record was deleted successfully, False otherwise.
+    """
+    cursor = conn.cursor()
+    try:
+        cursor.execute("DELETE FROM faa_reg WHERE n_number = ?", (n_number,))
+        conn.commit()
+        return cursor.rowcount > 0  # Returns True if at least one row was deleted
+    except sqlite3.Error as e:
+        print(f"Database error during delete: {e}")
+        conn.rollback()
+        return False
+
 def save_aircraft_data(conn, aircraft_data):
     """
     Saves aircraft data to the database
@@ -290,14 +331,14 @@ def save_aircraft_data(conn, aircraft_data):
 
 def register_FAA_Reg(mcp): 
     @mcp.tool()
-    def batch_process_n_numbers(n_numbers:List[str], db_path='aircraft.db', use_local_file=False):
+    def batch_process_n_numbers(n_numbers: List[str], db_path: str = 'aircraft.db', use_local_file: bool = False) -> str:
         """
         Processes a batch of N-Numbers and saves the data to the database
         
         Args:
-            n_numbers (list): List of aircraft N-Numbers to process
-            db_path (str): Path to the SQLite database file
-            use_local_file (bool): If True, use local HTML files instead of making requests
+            n_numbers: List of aircraft N-Numbers to process
+            db_path: Path to the SQLite database file
+            use_local_file: If True, use local HTML files instead of making requests
             
         Returns:
             str: Summary of the processing results
@@ -321,4 +362,67 @@ def register_FAA_Reg(mcp):
         
         conn.close()
         return f"Processing complete. Success: {success_count}, Failed: {fail_count}"
+
+    @mcp.tool()
+    def create_or_update_faa_entry(aircraft_data: dict, db_path: str = 'aircraft.db') -> str:
+        """
+        Creates a new entry or updates an existing one in the faa_reg table.
+
+        Args:
+            aircraft_data: Dictionary containing aircraft data. Must include 'n_number'.
+            db_path: Path to the SQLite database file.
+
+        Returns:
+            str: Confirmation message.
+        """
+        if not aircraft_data or 'n_number' not in aircraft_data:
+            return "Error: aircraft_data is missing or does not contain 'n_number'."
+        conn = setup_database(db_path)
+        if save_aircraft_data(conn, aircraft_data):
+            conn.close()
+            return f"Successfully created/updated entry for N-Number: {aircraft_data['n_number']}"
+        else:
+            conn.close()
+            return f"Failed to create/update entry for N-Number: {aircraft_data['n_number']}"
+
+    @mcp.tool()
+    def get_faa_entry(n_number: str, db_path: str = 'aircraft.db') -> dict:
+        """
+        Retrieves an aircraft registration entry from the faa_reg table.
+
+        Args:
+            n_number: The N-Number of the aircraft to retrieve.
+            db_path: Path to the SQLite database file.
+
+        Returns:
+            dict or str: The aircraft data as a dictionary, or an error message if not found.
+        """
+        conn = setup_database(db_path)
+        data = get_aircraft_data(conn, n_number)
+        conn.close()
+        if data:
+            return data
+        else:
+            return f"No entry found for N-Number: {n_number}"
+
+    @mcp.tool()
+    def delete_faa_entry(n_number: str, db_path: str = 'aircraft.db') -> str:
+        """
+        Deletes an aircraft registration entry from the faa_reg table.
+
+        Args:
+            n_number: The N-Number of the aircraft to delete.
+            db_path: Path to the SQLite database file.
+
+        Returns:
+            str: Confirmation or error message.
+        """
+        conn = setup_database(db_path)
+        if delete_aircraft_data(conn, n_number):
+            conn.close()
+            return f"Successfully deleted entry for N-Number: {n_number}"
+        else:
+            conn.close()
+            return f"Failed to delete entry or entry not found for N-Number: {n_number}"
+
     return mcp

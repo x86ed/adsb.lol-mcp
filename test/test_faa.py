@@ -13,7 +13,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # Import the functions from faa.py with the correct path
 from adsblol.faa import (
     parse_faa_aircraft_data, process_html_content, setup_database, 
-    save_aircraft_data, register_FAA_Reg
+    save_aircraft_data, register_FAA_Reg, get_aircraft_data, delete_aircraft_data
 )
 
 class TestFAARegistration(unittest.TestCase):
@@ -189,6 +189,9 @@ class TestFAARegistration(unittest.TestCase):
         
         # Verify the tool was registered
         self.assertIn('batch_process_n_numbers', mock_mcp.tools)
+        self.assertIn('create_or_update_faa_entry', mock_mcp.tools)
+        self.assertIn('get_faa_entry', mock_mcp.tools)
+        self.assertIn('delete_faa_entry', mock_mcp.tools)
 
     @mock.patch('adsblol.faa.parse_faa_aircraft_data')
     @mock.patch('adsblol.faa.save_aircraft_data')
@@ -230,6 +233,141 @@ class TestFAARegistration(unittest.TestCase):
         # Verify save_aircraft_data was called twice (for the two successful parses)
         self.assertEqual(mock_save.call_count, 2)
 
+    def test_get_aircraft_data(self):
+        """Test retrieving aircraft data from the database."""
+        aircraft_data = {
+            "n_number": "N55555",
+            "manufacturer": "TESTCORP",
+            "model": "MODELX"
+        }
+        save_aircraft_data(self.conn, aircraft_data)
+
+        retrieved_data = get_aircraft_data(self.conn, "N55555")
+        self.assertIsNotNone(retrieved_data)
+        self.assertEqual(retrieved_data["manufacturer"], "TESTCORP")
+        self.assertEqual(retrieved_data["model"], "MODELX")
+
+        non_existent_data = get_aircraft_data(self.conn, "N00000")
+        self.assertIsNone(non_existent_data)
+
+    def test_delete_aircraft_data(self):
+        """Test deleting aircraft data from the database."""
+        aircraft_data = {
+            "n_number": "N66666",
+            "manufacturer": "DELETECORP",
+            "model": "MODELY"
+        }
+        save_aircraft_data(self.conn, aircraft_data)
+
+        # Ensure it's there before delete
+        self.assertIsNotNone(get_aircraft_data(self.conn, "N66666"))
+
+        delete_success = delete_aircraft_data(self.conn, "N66666")
+        self.assertTrue(delete_success)
+        self.assertIsNone(get_aircraft_data(self.conn, "N66666"))
+
+        # Test deleting non-existent record
+        delete_fail = delete_aircraft_data(self.conn, "N00000")
+        self.assertFalse(delete_fail)
+        
+    def test_mcp_create_or_update_faa_entry(self):
+        """Test the create_or_update_faa_entry MCP tool."""
+        class MockMCP:
+            def __init__(self):
+                self.tools = {}
+            def tool(self):
+                def decorator(func):
+                    self.tools[func.__name__] = func
+                    return func
+                return decorator
+        
+        mock_mcp = MockMCP()
+        register_FAA_Reg(mock_mcp) # Register tools
+
+        tool_func = mock_mcp.tools['create_or_update_faa_entry']
+
+        # Test create
+        aircraft_data_create = {"n_number": "N77777", "manufacturer": "MCPCREATE"}
+        result_create = tool_func(aircraft_data_create, db_path=self.temp_db_path)
+        self.assertIn("Successfully created/updated entry", result_create)
+        
+        created_entry = get_aircraft_data(self.conn, "N77777")
+        self.assertIsNotNone(created_entry)
+        self.assertEqual(created_entry["manufacturer"], "MCPCREATE")
+
+        # Test update
+        aircraft_data_update = {"n_number": "N77777", "manufacturer": "MCPUPDATE"}
+        result_update = tool_func(aircraft_data_update, db_path=self.temp_db_path)
+        self.assertIn("Successfully created/updated entry", result_update)
+
+        updated_entry = get_aircraft_data(self.conn, "N77777")
+        self.assertIsNotNone(updated_entry)
+        self.assertEqual(updated_entry["manufacturer"], "MCPUPDATE")
+
+        # Test missing n_number
+        result_error = tool_func({"manufacturer": "ERROR"}, db_path=self.temp_db_path)
+        self.assertIn("Error: aircraft_data is missing", result_error)
+
+    def test_mcp_get_faa_entry(self):
+        """Test the get_faa_entry MCP tool."""
+        class MockMCP:
+            def __init__(self):
+                self.tools = {}
+            def tool(self):
+                def decorator(func):
+                    self.tools[func.__name__] = func
+                    return func
+                return decorator
+        
+        mock_mcp = MockMCP()
+        register_FAA_Reg(mock_mcp)
+        tool_func = mock_mcp.tools['get_faa_entry']
+
+        # Setup: save an entry first
+        initial_data = {"n_number": "N88888", "manufacturer": "MCPGET"}
+        save_aircraft_data(self.conn, initial_data)
+
+        # Test get existing
+        result_get = tool_func("N88888", db_path=self.temp_db_path)
+        self.assertIsInstance(result_get, dict)
+        self.assertEqual(result_get["manufacturer"], "MCPGET")
+
+        # Test get non-existent
+        result_not_found = tool_func("N00000", db_path=self.temp_db_path)
+        self.assertIsInstance(result_not_found, str)
+        self.assertIn("No entry found", result_not_found)
+
+    def test_mcp_delete_faa_entry(self):
+        """Test the delete_faa_entry MCP tool."""
+        class MockMCP:
+            def __init__(self):
+                self.tools = {}
+            def tool(self):
+                def decorator(func):
+                    self.tools[func.__name__] = func
+                    return func
+                return decorator
+
+        mock_mcp = MockMCP()
+        register_FAA_Reg(mock_mcp)
+        tool_func = mock_mcp.tools['delete_faa_entry']
+
+        # Setup: save an entry first
+        initial_data = {"n_number": "N99999", "manufacturer": "MCPDELETE"}
+        save_aircraft_data(self.conn, initial_data)
+        
+        # Ensure it's there
+        self.assertIsNotNone(get_aircraft_data(self.conn, "N99999"))
+
+        # Test delete existing
+        result_delete = tool_func("N99999", db_path=self.temp_db_path)
+        self.assertIn("Successfully deleted entry", result_delete)
+        self.assertIsNone(get_aircraft_data(self.conn, "N99999"))
+
+        # Test delete non-existent
+        result_not_found = tool_func("N00000", db_path=self.temp_db_path)
+        self.assertIn("Failed to delete entry or entry not found", result_not_found)
+
     def test_save_aircraft_data_with_foreign_key(self):
         """Test saving aircraft data with a foreign key relationship."""
         # Insert a record into faa_reg to satisfy the foreign key constraint
@@ -270,6 +408,78 @@ class TestFAARegistration(unittest.TestCase):
         self.assertEqual(result[0], "a1b2c3")
         self.assertEqual(result[1], "N12345")
         self.assertEqual(result[2], "UAL123")
+
+    def test_register_faa_reg_with_type_hints(self):
+        """Test that FAA tools are registered with proper type hints."""
+        import inspect
+        from typing import List, get_type_hints
+        
+        # Create a mock MCP
+        class MockMCP:
+            def __init__(self):
+                self.tools = {}
+                
+            def tool(self):
+                def decorator(func):
+                    self.tools[func.__name__] = func
+                    return func
+                return decorator
+        
+        mock_mcp = MockMCP()
+        
+        # Register FAA tools
+        register_FAA_Reg(mock_mcp)
+        
+        # Test batch_process_n_numbers type hints
+        batch_tool = mock_mcp.tools['batch_process_n_numbers']
+        type_hints = get_type_hints(batch_tool)
+        self.assertEqual(type_hints.get('n_numbers'), List[str])
+        self.assertEqual(type_hints.get('db_path'), str)
+        self.assertEqual(type_hints.get('use_local_file'), bool)
+        self.assertEqual(type_hints.get('return'), str)
+        
+        # Test create_or_update_faa_entry type hints
+        create_tool = mock_mcp.tools['create_or_update_faa_entry']
+        type_hints = get_type_hints(create_tool)
+        self.assertEqual(type_hints.get('aircraft_data'), dict)
+        self.assertEqual(type_hints.get('db_path'), str)
+        self.assertEqual(type_hints.get('return'), str)
+        
+        # Test get_faa_entry type hints
+        get_tool = mock_mcp.tools['get_faa_entry']
+        type_hints = get_type_hints(get_tool)
+        self.assertEqual(type_hints.get('n_number'), str)
+        self.assertEqual(type_hints.get('db_path'), str)
+        self.assertEqual(type_hints.get('return'), dict)
+        
+        # Test delete_faa_entry type hints
+        delete_tool = mock_mcp.tools['delete_faa_entry']
+        type_hints = get_type_hints(delete_tool)
+        self.assertEqual(type_hints.get('n_number'), str)
+        self.assertEqual(type_hints.get('db_path'), str)
+        self.assertEqual(type_hints.get('return'), str)
+
+    def test_mcp_batch_process_n_numbers_return_type(self):
+        """Test that batch_process_n_numbers returns a string."""
+        # Create mock MCP
+        class MockMCP:
+            def __init__(self):
+                self.tools = {}
+                
+            def tool(self):
+                def decorator(func):
+                    self.tools[func.__name__] = func
+                    return func
+                return decorator
+        
+        mock_mcp = MockMCP()
+        register_FAA_Reg(mock_mcp)
+        
+        with mock.patch('adsblol.faa.parse_faa_aircraft_data', return_value=None), \
+             mock.patch('adsblol.faa.save_aircraft_data', return_value=False):
+            result = mock_mcp.tools['batch_process_n_numbers'](["N12345"], self.temp_db_path)
+            self.assertIsInstance(result, str)
+            self.assertIn("Processing complete", result)
 
 
 if __name__ == '__main__':
