@@ -1,6 +1,22 @@
 import sqlite3
 import json
 import time
+import sys # Added
+import os  # Added
+
+# Path setup to find the local opensky_api module
+# This assumes that:
+# 1. This file (opensky.py) is located in a directory (e.g., 'adsblol').
+# 2. The 'adsblol' directory is a direct child of the project root.
+# 3. The 'opensky-api/python' directory is also a child of the project root,
+#    structured as 'project_root/opensky-api/python'.
+_current_file_directory = os.path.dirname(os.path.abspath(__file__))
+_project_root = os.path.dirname(_current_file_directory) # Moves up from 'adsblol/' to the project root
+_opensky_api_module_path = os.path.join(_project_root, 'opensky-api', 'python')
+
+if _opensky_api_module_path not in sys.path:
+    sys.path.insert(0, _opensky_api_module_path) # Prepend to prioritize this local version
+
 from opensky_api import OpenSkyApi # Assuming this is the correct import
 
 # Cache validity period in seconds (1 hour)
@@ -246,8 +262,22 @@ def register_opensky(mcp):
         mcp: The FastMCP instance with registered tools.
     """
 
-    @mcp.tool
+    @mcp.tool()
     def get_states(time_secs: int = 0, icao24: list = None, bbox: tuple = (), username: str = None, password: str = None, db_path: str = 'aircraft.db'):
+        """
+        Retrieves state vectors for all aircraft currently being tracked by OpenSky Network
+        
+        Args:
+            time_secs: The time in seconds since epoch (Unix timestamp). If set to 0, the most recent data is returned.
+            icao24: One or more ICAO24 transponder addresses represented as hex strings (e.g. 'abc9f3'). If None, all aircraft are returned.
+            bbox: Bounding box coordinates as a tuple (min_latitude, max_latitude, min_longitude, max_longitude).
+            username: OpenSky Network username. If not None, uses authenticated API access.
+            password: OpenSky Network password. If not None, uses authenticated API access.
+            db_path: Path to the SQLite database file for caching API responses.
+            
+        Returns:
+            dict: Dictionary containing state vectors of aircraft, or None if no data is available
+        """
         api_type = "states_general" # Generic type, can be refined based on params
         icao24_list = None
         if isinstance(icao24, str):
@@ -306,8 +336,22 @@ def register_opensky(mcp):
         finally:
             if conn: conn.close()
             
-    @mcp.tool
+    @mcp.tool()
     def get_my_states(time_secs: int = 0, icao24: list = None, serials: list = None, username: str = None, password: str = None, db_path: str = 'aircraft.db'):
+        """
+        Retrieves state vectors for your own sensors, requires OpenSky Network credentials
+        
+        Args:
+            time_secs: The time in seconds since epoch (Unix timestamp). If set to 0, the most recent data is returned.
+            icao24: One or more ICAO24 transponder addresses represented as hex strings. If None, all aircraft from your sensors are returned.
+            serials: Filter for specific sensors by serial numbers. If None, all your sensors are considered.
+            username: OpenSky Network username (required).
+            password: OpenSky Network password (required).
+            db_path: Path to the SQLite database file for caching API responses.
+            
+        Returns:
+            dict: Dictionary containing state vectors of aircraft from your sensors, or error message if authentication fails
+        """
         if not username or not password:
             return "Error: Username and password are required for get_my_states."
 
@@ -387,36 +431,104 @@ def register_opensky(mcp):
         finally:
             if conn: conn.close()
 
-    @mcp.tool
+    @mcp.tool()
     def get_arrivals_by_airport(airport: str, begin: int, end: int, username: str = None, password: str = None, db_path: str = 'aircraft.db'):
+        """
+        Retrieves flights arriving at the specified airport in the given time interval
+        
+        Args:
+            airport: ICAO code of the airport (e.g., 'EDDF', 'KLAX')
+            begin: Start time of the interval as Unix timestamp (seconds since epoch)
+            end: End time of the interval as Unix timestamp (seconds since epoch)
+            username: OpenSky Network username. If not None, uses authenticated API access.
+            password: OpenSky Network password. If not None, uses authenticated API access.
+            db_path: Path to the SQLite database file for caching API responses.
+            
+        Returns:
+            list: List of flight objects arriving at the specified airport, or None if no data is available
+        """
         api = OpenSkyApi(username=username, password=password)
-        api_call = lambda: api.get_arrivals_by_airport(airport, begin, end)
+        api_call = lambda: api.get_arrivals_by_airport(airport=airport, begin=begin, end=end)
         params = {'airport': airport, 'begin': begin, 'end': end}
         return _handle_flight_list_request(api_call, params, 'flights_arrivals', db_path, username, password)
 
-    @mcp.tool
+    @mcp.tool()
     def get_departures_by_airport(airport: str, begin: int, end: int, username: str = None, password: str = None, db_path: str = 'aircraft.db'):
+        """
+        Retrieves flights departing from the specified airport in the given time interval
+        
+        Args:
+            airport: ICAO code of the airport (e.g., 'EDDF', 'KLAX')
+            begin: Start time of the interval as Unix timestamp (seconds since epoch)
+            end: End time of the interval as Unix timestamp (seconds since epoch)
+            username: OpenSky Network username. If not None, uses authenticated API access.
+            password: OpenSky Network password. If not None, uses authenticated API access.
+            db_path: Path to the SQLite database file for caching API responses.
+            
+        Returns:
+            list: List of flight objects departing from the specified airport, or None if no data is available
+        """
         api = OpenSkyApi(username=username, password=password)
-        api_call = lambda: api.get_departures_by_airport(airport, begin, end)
+        api_call = lambda: api.get_departures_by_airport(airport=airport, begin=begin, end=end)
         params = {'airport': airport, 'begin': begin, 'end': end}
         return _handle_flight_list_request(api_call, params, 'flights_departures', db_path, username, password)
 
-    @mcp.tool
+    @mcp.tool()
     def get_flights_by_aircraft(icao24: str, begin: int, end: int, username: str = None, password: str = None, db_path: str = 'aircraft.db'):
+        """
+        Retrieves flights for a particular aircraft within the given time interval
+        
+        Args:
+            icao24: ICAO24 transponder address of the aircraft as hex string (e.g. 'abc9f3')
+            begin: Start time of the interval as Unix timestamp (seconds since epoch)
+            end: End time of the interval as Unix timestamp (seconds since epoch)
+            username: OpenSky Network username. If not None, uses authenticated API access.
+            password: OpenSky Network password. If not None, uses authenticated API access.
+            db_path: Path to the SQLite database file for caching API responses.
+            
+        Returns:
+            list: List of flight objects for the specified aircraft, or None if no data is available
+        """
         api = OpenSkyApi(username=username, password=password)
-        api_call = lambda: api.get_flights_by_aircraft(icao24, begin, end)
+        api_call = lambda: api.get_flights_by_aircraft(icao24=icao24, begin=begin, end=end)
         params = {'icao24': icao24, 'begin': begin, 'end': end}
         return _handle_flight_list_request(api_call, params, 'flights_by_aircraft', db_path, username, password)
 
-    @mcp.tool
+    @mcp.tool()
     def get_flights_from_interval(begin: int, end: int, username: str = None, password: str = None, db_path: str = 'aircraft.db'):
+        """
+        Retrieves all flights within the given time interval
+        
+        Args:
+            begin: Start time of the interval as Unix timestamp (seconds since epoch)
+            end: End time of the interval as Unix timestamp (seconds since epoch)
+            username: OpenSky Network username. If not None, uses authenticated API access.
+            password: OpenSky Network password. If not None, uses authenticated API access.
+            db_path: Path to the SQLite database file for caching API responses.
+            
+        Returns:
+            list: List of flight objects for the specified time interval, or None if no data is available
+        """
         api = OpenSkyApi(username=username, password=password)
-        api_call = lambda: api.get_flights_from_interval(begin, end)
+        api_call = lambda: api.get_flights_from_interval(begin=begin, end=end)
         params = {'begin': begin, 'end': end}
         return _handle_flight_list_request(api_call, params, 'flights_from_interval', db_path, username, password)
 
-    @mcp.tool
+    @mcp.tool()
     def get_track_by_aircraft(icao24: str, t: int = 0, username: str = None, password: str = None, db_path: str = 'aircraft.db'):
+        """
+        Retrieves the trajectory for a particular aircraft at a given time
+        
+        Args:
+            icao24: ICAO24 transponder address of the aircraft as hex string (e.g. 'abc9f3')
+            t: Time in seconds since epoch (Unix timestamp). If set to 0, the most recent track is returned.
+            username: OpenSky Network username. If not None, uses authenticated API access.
+            password: OpenSky Network password. If not None, uses authenticated API access.
+            db_path: Path to the SQLite database file for caching API responses.
+            
+        Returns:
+            dict: Dictionary containing the track data including path waypoints, or None if no data is available
+        """
         api_type = "track_icao24"
         params_for_key = {'icao24': icao24, 'time': t} # Use 'time' for consistency in key
         params_json = json.dumps(params_for_key, sort_keys=True)
@@ -441,7 +553,7 @@ def register_opensky(mcp):
                 return _reconstruct_track_from_db(track_master_row, waypoint_rows)
 
             api = OpenSkyApi(username=username, password=password)
-            track_obj = api.get_track_by_aircraft(icao24, time=t) # API uses 'time'
+            track_obj = api.get_track_by_aircraft(icao24=icao24, time=t) # API uses 'time'
             if track_obj is None:
                 conn.close()
                 return None

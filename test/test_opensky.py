@@ -12,10 +12,18 @@ import typing # For type hint test
 # Ensure adsblol is in path for imports if running script directly
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+# Add the opensky-api/python directory to the Python path for opensky_api imports
+_test_file_directory = os.path.dirname(os.path.abspath(__file__))
+_project_root = os.path.dirname(_test_file_directory)
+_opensky_api_module_path = os.path.join(_project_root, 'opensky-api', 'python')
+
+if _opensky_api_module_path not in sys.path:
+    sys.path.insert(0, _opensky_api_module_path)
+
 import adsblol.opensky
 from adsblol.opensky import CACHE_VALIDITY_PERIOD
 from opensky_api import OpenSkyApi as RealOpenSkyApi
-from opensky_api import StateVector, OpenSkyStates, Flight, FlightTrack, Waypoint
+from opensky_api import StateVector, OpenSkyStates, FlightData, FlightTrack, Waypoint
 
 # --- Mock Data Creation Helpers (consistent with opensky.py's expectations) ---
 def create_mock_state_vector(**kwargs):
@@ -30,17 +38,28 @@ def create_mock_state_vector(**kwargs):
     }
     attrs.update(kwargs)
     for k, v in attrs.items(): setattr(sv, k, v)
-    sv.__dict__ = attrs.copy() # For _api_states_to_dict
     return sv
 
 def create_mock_opensky_states_object(num_states=1, **kwargs_for_sv):
     states_obj = MagicMock(spec=OpenSkyStates)
     states_obj.time = kwargs_for_sv.get('time_position', int(time.time())) # Ensure this is set
-    states_obj.states = [create_mock_state_vector(icao24=f"state{i}", **kwargs_for_sv) for i in range(num_states)]
+    
+    # Create a copy of kwargs_for_sv without 'icao24' to prevent duplicate kwargs
+    state_kwargs = kwargs_for_sv.copy()
+    provided_icao = None
+    if 'icao24' in state_kwargs:
+        provided_icao = state_kwargs['icao24']
+        del state_kwargs['icao24']
+    
+    # Use the provided icao24 if available, otherwise generate one
+    if provided_icao:
+        states_obj.states = [create_mock_state_vector(icao24=provided_icao, **state_kwargs) for _ in range(num_states)]
+    else:
+        states_obj.states = [create_mock_state_vector(icao24=f"state{i}", **state_kwargs) for i in range(num_states)]
     return states_obj
 
 def create_mock_flight_data(**kwargs):
-    flight = MagicMock(spec=Flight)
+    flight = MagicMock(spec=FlightData)
     attrs = {
         'icao24': 'flticao', 'first_seen': int(time.time()) - 7200,
         'est_departure_airport': 'EDDF', 'last_seen': int(time.time()) - 300,
@@ -51,7 +70,6 @@ def create_mock_flight_data(**kwargs):
     }
     attrs.update(kwargs)
     for k, v in attrs.items(): setattr(flight, k, v)
-    flight.__dict__ = attrs.copy() # For _api_flights_to_list_of_dicts
     return flight
 
 def create_mock_waypoint_data(**kwargs):
@@ -62,7 +80,6 @@ def create_mock_waypoint_data(**kwargs):
     }
     attrs.update(kwargs)
     for k, v in attrs.items(): setattr(wp, k, v)
-    wp.__dict__ = attrs.copy() # For _api_track_to_dict
     return wp
 
 def create_mock_flight_track_object(**kwargs):
@@ -91,7 +108,15 @@ class TestOpenSky(unittest.TestCase):
         # Initialize the schema in this temporary DB
         self.conn = adsblol.opensky.setup_database(self.temp_db_path)
         
-        self.mock_mcp = MagicMock()
+        # Create a simple object to hold the registered functions
+        self.mock_mcp = type('MockMCP', (), {})()
+        def tool_decorator(*args, **kwargs):
+            def decorator(func):
+                # Store the function as an attribute so we can call it directly
+                setattr(self.mock_mcp, func.__name__, func)
+                return func
+            return decorator
+        self.mock_mcp.tool = tool_decorator
         adsblol.opensky.register_opensky(self.mock_mcp)
 
         # Common mock API return objects
@@ -356,6 +381,17 @@ class TestOpenSky(unittest.TestCase):
     def test_opensky_tool_type_hints(self):
         # Check type hints for registered tool functions
         mcp_instance_for_hints = MagicMock() # A fresh one to avoid interference
+        # Since we're now using @mcp.tool(), we need a different approach
+        registered_funcs = {}
+        
+        # Create a decorator that captures the decorated functions
+        def mock_tool_decorator(*args, **kwargs):
+            def decorator(func):
+                registered_funcs[func.__name__] = func
+                return func
+            return decorator
+            
+        mcp_instance_for_hints.tool = mock_tool_decorator
         adsblol.opensky.register_opensky(mcp_instance_for_hints)
 
         tool_functions_to_check = [
@@ -364,57 +400,17 @@ class TestOpenSky(unittest.TestCase):
             "get_flights_from_interval", "get_track_by_aircraft"
         ]
 
+        # Check that each expected function was registered
         for tool_name in tool_functions_to_check:
-            tool_method = getattr(mcp_instance_for_hints, tool_name, None)
-            self.assertIsNotNone(tool_method, f"Tool {tool_name} not found on mock_mcp instance")
+            self.assertIn(tool_name, registered_funcs, f"Tool {tool_name} was not registered")
             
-            # The actual function is typically __wrapped__ if @mcp.tool uses functools.wraps
-            # Or it might be directly the method if the decorator assigns attributes.
-            # Given our MagicMock setup, tool_method is a MagicMock.
-            # We need to find where the original function was stored by the mock decorator.
-            # If adsblol.opensky.register_opensky assigned the functions directly (e.g. mcp.get_states = decorated_get_states)
-            # and self.mock_mcp.tool = MagicMock(side_effect=lambda f: f) # a passthrough decorator
-            # then self.mock_mcp.get_states would be the actual function.
-            
-            # For this test, let's assume the simplest case: that the mcp.tool decorator
-            # (when mocked) was called with the original function. We can inspect the call_args.
-            # This requires that the mock_mcp.tool was set up to capture the function.
-            
-            # A more robust way: inspect the functions directly from adsblol.opensky
-            # before they are decorated, if possible, or ensure the mock decorator stores it.
-            # Since register_opensky defines them *inside*, this is tricky.
-            
-            # Let's check the type hints on the *original* functions if we can access them.
-            # This test is more of a placeholder for how it *could* be done if tools were defined globally.
-            # With the current structure, type hints are on functions inside register_opensky.
-            # We can't easily get them from the self.mock_mcp instance after decoration by MagicMock.
-
-            # This test will likely fail or not be very useful with current setup.
-            # A true test would require either:
-            # 1. Tools defined globally in opensky.py to inspect them directly.
-            # 2. The mock_mcp.tool decorator to be more sophisticated in how it stores the wrapped func.
-            
-            # For now, we'll acknowledge this limitation.
-            # A simple check might be to see if the call to register_opensky resulted in
-            # the `tool` attribute of mock_mcp being called for each function.
-            
-            found_registration_call = False
-            for call_obj in self.mock_mcp.tool.call_args_list:
-                args, _ = call_obj
-                if args and hasattr(args[0], '__name__') and args[0].__name__ == tool_name:
-                    original_func = args[0]
-                    try:
-                        # This will only work if original_func is the actual function with hints
-                        # not a partial or another wrapper.
-                        hints = typing.get_type_hints(original_func)
-                        self.assertIn('return', hints, f"Return type hint missing for {tool_name}")
-                    except Exception as e:
-                        # This might happen if original_func is not directly hintable (e.g. a mock itself)
-                        # For this specific test, we'll just ensure it was registered.
-                        pass # print(f"Could not get type hints for {tool_name} due to: {e}")
-                    found_registration_call = True
-                    break
-            self.assertTrue(found_registration_call, f"Tool {tool_name} was not registered via mcp.tool")
+            try:
+                # Check if the function has type hints
+                hints = typing.get_type_hints(registered_funcs[tool_name])
+                self.assertIn('return', hints, f"Return type hint missing for {tool_name}")
+            except Exception as e:
+                # This might happen if the function isn't directly hintable
+                pass
 
 
 if __name__ == '__main__':
