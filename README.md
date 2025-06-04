@@ -26,23 +26,52 @@ This project provides a Model Context Protocol server that allows AI assistants 
 
 ## Installation
 
+### Prerequisites
+
+- Python 3.12 or higher
+- UV package manager
+- Git
+
+### Cold Start Setup
+
 ```bash
-# Clone the repository
-git clone https://github.com/yourusername/adsb.lol-mcp.git
+# Clone the repository with submodules
+git clone --recursive https://github.com/x86ed/adsb.lol-mcp.git
 cd adsb.lol-mcp
 
-# Initialize the OpenSky API submodule (if cloned without --recursive)
+# If you already cloned without --recursive, initialize submodules
 git submodule update --init --recursive
 
-# Install dependencies using UV
+# Set up Python environment with UV
 uv venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+source .venv/bin/activate  # On macOS/Linux
+# .venv\Scripts\activate     # On Windows
+
+# Install all dependencies
 uv pip install -e .
+
+# Initialize the aircraft database (creates aircraft.db if it doesn't exist)
+python -c "from adsblol.api_v2 import setup_lol_aircraft_database; setup_lol_aircraft_database()"
 ```
 
 ### OpenSky API Setup
 
 This project uses a local copy of the OpenSky API Python library located in the `opensky-api/python` directory. The project is configured to use this local version rather than the PyPI package to ensure compatibility and access to the latest features.
+
+#### Pulling Down OpenSky Code
+
+The OpenSky API is included as a Git submodule. To ensure you have the latest version:
+
+```bash
+# If setting up for the first time or the opensky-api directory is empty
+git submodule update --init --recursive
+
+# To update to the latest OpenSky API code
+git submodule update --remote opensky-api
+
+# If you need to manually clone the OpenSky repository (fallback option)
+git clone https://github.com/openskynetwork/opensky-api.git
+```
 
 The local OpenSky API dependency is automatically handled by the `pyproject.toml` configuration:
 
@@ -51,7 +80,11 @@ The local OpenSky API dependency is automatically handled by the `pyproject.toml
 opensky-api = { path = "opensky-api/python" }
 ```
 
-If you encounter issues with the OpenSky integration, ensure the `opensky-api` directory is present and contains the Python module.
+**Troubleshooting:**
+
+- If the `opensky-api` directory is empty, run `git submodule update --init --recursive`
+- Verify the Python module exists at `opensky-api/python/opensky_api.py`
+- If you encounter import errors, ensure the submodule is properly initialized
 
 ## Testing
 
